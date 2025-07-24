@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import pathlib
 import subprocess
 import json
 import os
@@ -38,8 +39,16 @@ def main():
     parser.add_argument("--image-name", help="Optional: name of the final built catalog image")
     parser.add_argument("--base-image", help="Base image to use in the catalog (defaults to OCP registry image)")
     parser.add_argument("--builder-image", help="Builder image to use in the catalog (defaults to OCP registry image)")
+    parser.add_argument("--push", action="store_true", help="Push the image after building")
+    parser.add_argument("--runtime", default="podman", help="Container runtime to use (default: podman)")
 
     args = parser.parse_args()
+
+    generated_dockerfile_name = f'{args.output_dir}.Dockerfile'
+    if args.image_name:
+        if pathlib.Path(generated_dockerfile_name).exists():
+            print(f'{generated_dockerfile_name} already exists. Delete it before running this command.')
+            exit(1)
 
     major = args.major
     minor = args.minor
@@ -78,9 +87,15 @@ def main():
     if args.image_name:
         print(f"Building catalog image: {args.image_name}")
         subprocess.run([
-            "podman", "build", "-t", args.image_name, '-f', f'{args.output_dir}.Dockerfile'
+            args.runtime, "build", "-t", args.image_name, '-f', generated_dockerfile_name
         ], check=True)
         print("Catalog image built successfully.")
+
+        if args.push:
+            print(f"Pushing image: {args.image_name}")
+            subprocess.run([
+                args.runtime, "push", args.image_name
+            ], check=True)
 
 
 if __name__ == "__main__":
